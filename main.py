@@ -5,154 +5,366 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 from streamlit_autorefresh import st_autorefresh
 
-# Page setup
+# ─────────────────────────────────────────────
+# PAGE CONFIG
+# ─────────────────────────────────────────────
+
 st.set_page_config(
     page_title="Momentum Trading Terminal",
     layout="wide"
 )
 
-# Smooth rerun every 1 second — data is cached (ttl=15s), no API hammering
-st_autorefresh(interval=1000, limit=None, key="clock_refresh")
+# ─────────────────────────────────────────────
+# AUTO REFRESH
+# ONLY DATA FEELS REFRESHED
+# ─────────────────────────────────────────────
 
-# Live IST ticking clock
-ist_tz = ZoneInfo("Asia/Kolkata")
-now_ist = datetime.now(ist_tz).strftime("%H:%M:%S")
-st.markdown(
-    f"<p style='font-size:1.5rem;font-weight:700;color:#26a69a;"
-    f"font-family:monospace;letter-spacing:3px;margin:0;padding:2px 0;'>"
-    f"🕐 {now_ist} IST</p>",
-    unsafe_allow_html=True,
+st_autorefresh(
+    interval=15000,
+    key="market_refresh"
 )
+
+# ─────────────────────────────────────────────
+# IST CLOCK
+# ─────────────────────────────────────────────
+
+ist_tz = ZoneInfo("Asia/Kolkata")
+
+clock_placeholder = st.empty()
+
+clock_placeholder.markdown(
+    f"""
+    <div style="
+        font-size:28px;
+        font-weight:700;
+        color:#26a69a;
+        font-family:monospace;
+    ">
+    🕐 {datetime.now(ist_tz).strftime("%H:%M:%S")} IST
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+
+# ─────────────────────────────────────────────
+# TITLE
+# ─────────────────────────────────────────────
 
 st.title("🚀 Momentum Trading Terminal")
 
-# ── Default watchlist ─────────────────────────────────────────────────────────
-DEFAULT_STOCKS = [
-    "RELIANCE.NS", "TCS.NS", "INFY.NS", "HDFCBANK.NS", "ICICIBANK.NS",
-    "SBIN.NS", "RVNL.NS", "IRFC.NS", "BEL.NS", "SUZLON.NS",
+# ─────────────────────────────────────────────
+# NIFTY 50 STOCKS
+# ─────────────────────────────────────────────
+
+NIFTY_50 = [
+    "RELIANCE.NS",
+    "TCS.NS",
+    "INFY.NS",
+    "HDFCBANK.NS",
+    "ICICIBANK.NS",
+    "SBIN.NS",
+    "ITC.NS",
+    "LT.NS",
+    "AXISBANK.NS",
+    "KOTAKBANK.NS",
+    "BHARTIARTL.NS",
+    "ASIANPAINT.NS",
+    "MARUTI.NS",
+    "SUNPHARMA.NS",
+    "TITAN.NS",
+    "BAJFINANCE.NS",
+    "ULTRACEMCO.NS",
+    "HCLTECH.NS",
 ]
 
-# ── Sidebar watchlist manager ─────────────────────────────────────────────────
+# ─────────────────────────────────────────────
+# SESSION STATE
+# ─────────────────────────────────────────────
+
+if "watchlist" not in st.session_state:
+    st.session_state.watchlist = NIFTY_50[:10]
+
+# ─────────────────────────────────────────────
+# SIDEBAR
+# ─────────────────────────────────────────────
+
 with st.sidebar:
-    st.header("📋 Watchlist")
 
-    if "watchlist" not in st.session_state:
-        st.session_state.watchlist = DEFAULT_STOCKS.copy()
+    st.header("📋 NIFTY 50 Watchlist")
 
-    new_stock = st.text_input(
-        "Add stock (NSE format)",
-        placeholder="e.g. WIPRO.NS",
-    ).upper().strip()
+    # ADD STOCKS
+    available_stocks = [
+        s for s in NIFTY_50
+        if s not in st.session_state.watchlist
+    ]
 
-    if st.button("➕ Add", use_container_width=True) and new_stock:
-        if new_stock not in st.session_state.watchlist:
-            st.session_state.watchlist.append(new_stock)
-            st.success(f"Added {new_stock}")
-        else:
-            st.warning(f"{new_stock} already in list")
+    selected_stock = st.selectbox(
+        "Add NIFTY 50 Stock",
+        available_stocks
+    )
 
-    st.markdown("**Click ✕ to remove:**")
-    to_remove = []
-    for stock in st.session_state.watchlist:
-        c1, c2 = st.columns([5, 1])
-        c1.write(stock.replace(".NS", ""))
-        if c2.button("✕", key=f"rm_{stock}"):
-            to_remove.append(stock)
+    if st.button(
+        "➕ Add Stock",
+        use_container_width=True
+    ):
 
-    for s in to_remove:
-        st.session_state.watchlist.remove(s)
+        st.session_state.watchlist.append(
+            selected_stock
+        )
+
         st.rerun()
 
     st.divider()
 
-    if st.button("↺ Reset to Default", use_container_width=True):
-        st.session_state.watchlist = DEFAULT_STOCKS.copy()
+    st.subheader("Current Watchlist")
+
+    remove_stock = None
+
+    for stock in st.session_state.watchlist:
+
+        col1, col2 = st.columns([5, 1])
+
+        col1.write(
+            stock.replace(".NS", "")
+        )
+
+        if col2.button(
+            "✕",
+            key=f"remove_{stock}"
+        ):
+            remove_stock = stock
+
+    if remove_stock:
+
+        st.session_state.watchlist.remove(
+            remove_stock
+        )
+
         st.rerun()
 
-# ── Data fetch cached 15 s ────────────────────────────────────────────────────
+# ─────────────────────────────────────────────
+# DATA CACHE
+# ─────────────────────────────────────────────
+
 @st.cache_data(ttl=15)
-def fetch_data(stocks_tuple):
-    data = []
 
-    for stock in stocks_tuple:
+def fetch_market_data(stock_list):
+
+    results = []
+
+    for stock in stock_list:
+
         try:
+
             ticker = yf.Ticker(stock)
-            hist = ticker.history(period="5d", interval="15m")
 
-            if len(hist) < 10:
-                continue
-
-            current_price = hist["Close"].iloc[-1]
-            prev_price = hist["Close"].iloc[-2]
-            change_percent = (
-                (current_price - prev_price) / prev_price * 100
+            hist = ticker.history(
+                period="5d",
+                interval="15m"
             )
 
-            current_volume = hist["Volume"].iloc[-1]
-            avg_volume = hist["Volume"].tail(20).mean()
-            relative_volume = current_volume / avg_volume
+            if len(hist) < 20:
+                continue
+
+            current_price = (
+                hist["Close"].iloc[-1]
+            )
+
+            prev_price = (
+                hist["Close"].iloc[-2]
+            )
+
+            change_percent = (
+                (
+                    current_price
+                    - prev_price
+                )
+                / prev_price
+            ) * 100
+
+            current_volume = (
+                hist["Volume"].iloc[-1]
+            )
+
+            avg_volume = (
+                hist["Volume"]
+                .tail(20)
+                .mean()
+            )
+
+            relative_volume = (
+                current_volume / avg_volume
+            )
 
             # VWAP
             typical_price = (
-                hist["High"] + hist["Low"] + hist["Close"]
+                hist["High"]
+                + hist["Low"]
+                + hist["Close"]
             ) / 3
 
             vwap = (
-                (typical_price * hist["Volume"]).cumsum()
+                (
+                    typical_price
+                    * hist["Volume"]
+                ).cumsum()
                 / hist["Volume"].cumsum()
             ).iloc[-1]
 
-            bias = "🟢 BUY" if current_price > vwap else "🔴 SELL"
-            spike = "🔥 YES" if relative_volume > 1.5 else "No"
+            # VWAP DISTANCE
+            vwap_distance = (
+                (
+                    current_price - vwap
+                ) / vwap
+            ) * 100
 
-            momentum_score = (
-                (change_percent * 0.5)
-                + (relative_volume * 0.5)
+            # DAY RANGE %
+            day_high = hist["High"].max()
+
+            day_low = hist["Low"].min()
+
+            day_range_percent = (
+                (
+                    day_high - day_low
+                ) / day_low
+            ) * 100
+
+            # VOLUME SPIKE
+            volume_spike = (
+                "🔥"
+                if relative_volume > 1.5
+                else ""
             )
 
-            data.append({
-                "Stock": stock.replace(".NS", ""),
-                "Price": round(current_price, 2),
-                "% Change": round(change_percent, 2),
-                "VWAP": round(vwap, 2),
-                "Bias": bias,
-                "RVOL": round(relative_volume, 2),
-                "Volume Spike": spike,
-                "Momentum": round(momentum_score, 2),
+            # MOMENTUM SCORE
+            momentum_score = (
+                (change_percent * 0.4)
+                +
+                (relative_volume * 0.4)
+                +
+                (vwap_distance * 0.2)
+            )
+
+            results.append({
+
+                "Stock":
+                    stock.replace(".NS", ""),
+
+                "Price":
+                    round(current_price, 2),
+
+                "% Change":
+                    round(change_percent, 2),
+
+                "RVOL":
+                    round(relative_volume, 2),
+
+                "VWAP Dist %":
+                    round(vwap_distance, 2),
+
+                "Day Range %":
+                    round(day_range_percent, 2),
+
+                "Volume":
+                    int(current_volume),
+
+                "Spike":
+                    volume_spike,
+
+                "Momentum":
+                    round(momentum_score, 2)
             })
 
         except Exception:
-            pass
+            continue
 
-    return data
+    return results
 
-stocks_tuple = tuple(
-    st.session_state.get("watchlist", DEFAULT_STOCKS)
+# ─────────────────────────────────────────────
+# DATA ENGINE
+# ─────────────────────────────────────────────
+
+market_data = fetch_market_data(
+    tuple(st.session_state.watchlist)
 )
 
-data = fetch_data(stocks_tuple)
+if not market_data:
 
-if not data:
-    st.error("No data fetched. Check your watchlist symbols.")
+    st.error(
+        "No market data available."
+    )
+
     st.stop()
 
-df = pd.DataFrame(data)
-df = df.sort_values(by="Momentum", ascending=False)
+# ─────────────────────────────────────────────
+# DATAFRAME
+# ─────────────────────────────────────────────
 
-df.insert(0, "Rank", range(1, len(df) + 1))
+df = pd.DataFrame(market_data)
 
-# Top opportunity
-top_stock = df.iloc[0]
-
-st.success(
-    f"🔥 Top Opportunity: "
-    f"{top_stock['Stock']} | "
-    f"{top_stock['Bias']} | "
-    f"Momentum: {top_stock['Momentum']}"
+df = df.sort_values(
+    by="Momentum",
+    ascending=False
 )
 
-st.dataframe(df, width="stretch")
+df.insert(
+    0,
+    "Rank",
+    range(1, len(df) + 1)
+)
+
+# ─────────────────────────────────────────────
+# TOP STOCK PANEL
+# ─────────────────────────────────────────────
+
+top_stock = df.iloc[0]
+
+col1, col2, col3, col4 = st.columns(4)
+
+col1.metric(
+    "🔥 Top Momentum",
+    top_stock["Stock"]
+)
+
+col2.metric(
+    "📈 Momentum",
+    top_stock["Momentum"]
+)
+
+col3.metric(
+    "⚡ RVOL",
+    top_stock["RVOL"]
+)
+
+col4.metric(
+    "💥 Change %",
+    top_stock["% Change"]
+)
+
+st.divider()
+
+# ─────────────────────────────────────────────
+# LIVE TABLE PLACEHOLDER
+# ─────────────────────────────────────────────
+
+table_placeholder = st.empty()
+
+table_placeholder.dataframe(
+    df,
+    use_container_width=True,
+    hide_index=True
+)
+
+# ─────────────────────────────────────────────
+# FOOTER
+# ─────────────────────────────────────────────
 
 st.caption(
-    "🔄 Data refreshes every 15 seconds  ·  Clock ticks every second"
+    """
+    🔄 Market data updates every 15 seconds
+    •
+    📊 Momentum ranking updates automatically
+    •
+    🚀 Optimized for momentum trading
+    """
 )
