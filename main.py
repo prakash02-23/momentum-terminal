@@ -28,22 +28,44 @@ st_autorefresh(
 # LIVE IST CLOCK
 # ─────────────────────────────────────────────
 
-ist_tz = ZoneInfo("Asia/Kolkata")
-
-clock_placeholder = st.empty()
-
-clock_placeholder.markdown(
-    f"""
-    <div style="
-        font-size:30px;
+st.markdown(
+    """
+    <div id="clock" style="
+        font-size:32px;
         font-weight:700;
         color:#26a69a;
         font-family:monospace;
-        letter-spacing:2px;
-        margin-bottom:10px;
+        letter-spacing:3px;
+        margin-bottom:15px;
     ">
-    🕐 {datetime.now(ist_tz).strftime("%H:%M:%S")} IST
     </div>
+
+    <script>
+    function updateClock() {
+
+        const now = new Date();
+
+        const options = {
+            timeZone: "Asia/Kolkata",
+            hour12: false,
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit"
+        };
+
+        const time = now.toLocaleTimeString(
+            "en-IN",
+            options
+        );
+
+        document.getElementById("clock").innerHTML =
+            "🕐 " + time + " IST";
+    }
+
+    setInterval(updateClock, 1000);
+
+    updateClock();
+    </script>
     """,
     unsafe_allow_html=True
 )
@@ -59,26 +81,59 @@ st.title("🚀 Momentum Trading Terminal")
 # ─────────────────────────────────────────────
 
 NIFTY_50 = sorted([
-    "RELIANCE.NS",
-    "TCS.NS",
-    "INFY.NS",
-    "HDFCBANK.NS",
-    "ICICIBANK.NS",
-    "SBIN.NS",
-    "ITC.NS",
-    "LT.NS",
-    "AXISBANK.NS",
-    "KOTAKBANK.NS",
-    "BHARTIARTL.NS",
+
+    "ADANIENT.NS",
+    "ADANIPORTS.NS",
+    "APOLLOHOSP.NS",
     "ASIANPAINT.NS",
-    "MARUTI.NS",
-    "SUNPHARMA.NS",
-    "TITAN.NS",
+    "AXISBANK.NS",
+    "BAJAJ-AUTO.NS",
     "BAJFINANCE.NS",
-    "ULTRACEMCO.NS",
+    "BAJAJFINSV.NS",
+    "BEL.NS",
+    "BHARTIARTL.NS",
+    "BPCL.NS",
+    "BRITANNIA.NS",
+    "CIPLA.NS",
+    "COALINDIA.NS",
+    "DRREDDY.NS",
+    "EICHERMOT.NS",
+    "ETERNAL.NS",
+    "GRASIM.NS",
     "HCLTECH.NS",
-    "WIPRO.NS",
+    "HDFCBANK.NS",
+    "HDFCLIFE.NS",
+    "HEROMOTOCO.NS",
+    "HINDALCO.NS",
+    "HINDUNILVR.NS",
+    "ICICIBANK.NS",
+    "INDUSINDBK.NS",
+    "INFY.NS",
+    "ITC.NS",
+    "JIOFIN.NS",
+    "JSWSTEEL.NS",
+    "KOTAKBANK.NS",
+    "LT.NS",
+    "M&M.NS",
+    "MARUTI.NS",
+    "NESTLEIND.NS",
+    "NTPC.NS",
+    "ONGC.NS",
     "POWERGRID.NS",
+    "RELIANCE.NS",
+    "SBILIFE.NS",
+    "SBIN.NS",
+    "SHRIRAMFIN.NS",
+    "SUNPHARMA.NS",
+    "TATACONSUM.NS",
+    "TATAMOTORS.NS",
+    "TATASTEEL.NS",
+    "TCS.NS",
+    "TECHM.NS",
+    "TITAN.NS",
+    "TRENT.NS",
+    "ULTRACEMCO.NS",
+    "WIPRO.NS"
 ])
 
 # ─────────────────────────────────────────────
@@ -108,7 +163,7 @@ if "watchlist" not in st.session_state:
 
 with st.sidebar:
 
-    st.header("📋 Watchlist Manager")
+    st.header("📈 NIFTY 50 Momentum Scanner")
 
     # AVAILABLE STOCKS
     available_stocks = [
@@ -124,9 +179,10 @@ with st.sidebar:
     with st.form("add_stock_form"):
 
         selected_stock = st.selectbox(
-            "Select NIFTY 50 Stock",
-            available_stocks
-        )
+    "Select NIFTY 50 Stock",
+    available_stocks,
+    format_func=lambda x: x.replace(".NS", "")
+)
 
         add_button = st.form_submit_button(
             "➕ Add Stock",
