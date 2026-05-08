@@ -16,7 +16,7 @@ st.set_page_config(
 
 # ─────────────────────────────────────────────
 # AUTO REFRESH
-# ONLY DATA FEELS REFRESHED
+# ONLY MARKET DATA REFRESH FEEL
 # ─────────────────────────────────────────────
 
 st_autorefresh(
@@ -25,7 +25,7 @@ st_autorefresh(
 )
 
 # ─────────────────────────────────────────────
-# IST CLOCK
+# LIVE IST CLOCK
 # ─────────────────────────────────────────────
 
 ist_tz = ZoneInfo("Asia/Kolkata")
@@ -35,10 +35,12 @@ clock_placeholder = st.empty()
 clock_placeholder.markdown(
     f"""
     <div style="
-        font-size:28px;
+        font-size:30px;
         font-weight:700;
         color:#26a69a;
         font-family:monospace;
+        letter-spacing:2px;
+        margin-bottom:10px;
     ">
     🕐 {datetime.now(ist_tz).strftime("%H:%M:%S")} IST
     </div>
@@ -53,10 +55,10 @@ clock_placeholder.markdown(
 st.title("🚀 Momentum Trading Terminal")
 
 # ─────────────────────────────────────────────
-# NIFTY 50 STOCKS
+# NIFTY 50 STOCK POOL
 # ─────────────────────────────────────────────
 
-NIFTY_50 = [
+NIFTY_50 = sorted([
     "RELIANCE.NS",
     "TCS.NS",
     "INFY.NS",
@@ -75,6 +77,20 @@ NIFTY_50 = [
     "BAJFINANCE.NS",
     "ULTRACEMCO.NS",
     "HCLTECH.NS",
+    "WIPRO.NS",
+    "POWERGRID.NS",
+])
+
+# ─────────────────────────────────────────────
+# DEFAULT WATCHLIST
+# ─────────────────────────────────────────────
+
+DEFAULT_WATCHLIST = [
+    "RELIANCE.NS",
+    "TCS.NS",
+    "INFY.NS",
+    "SBIN.NS",
+    "ITC.NS",
 ]
 
 # ─────────────────────────────────────────────
@@ -82,7 +98,9 @@ NIFTY_50 = [
 # ─────────────────────────────────────────────
 
 if "watchlist" not in st.session_state:
-    st.session_state.watchlist = NIFTY_50[:10]
+    st.session_state.watchlist = (
+        DEFAULT_WATCHLIST.copy()
+    )
 
 # ─────────────────────────────────────────────
 # SIDEBAR
@@ -90,36 +108,46 @@ if "watchlist" not in st.session_state:
 
 with st.sidebar:
 
-    st.header("📋 NIFTY 50 Watchlist")
+    st.header("📋 Watchlist Manager")
 
-    # ADD STOCKS
+    # AVAILABLE STOCKS
     available_stocks = [
-        s for s in NIFTY_50
-        if s not in st.session_state.watchlist
+
+        stock
+
+        for stock in NIFTY_50
+
+        if stock not in st.session_state.watchlist
     ]
 
-    selected_stock = st.selectbox(
-        "Add NIFTY 50 Stock",
-        available_stocks
-    )
+    # ADD STOCK FORM
+    with st.form("add_stock_form"):
 
-    if st.button(
-        "➕ Add Stock",
-        use_container_width=True
-    ):
-
-        st.session_state.watchlist.append(
-            selected_stock
+        selected_stock = st.selectbox(
+            "Select NIFTY 50 Stock",
+            available_stocks
         )
 
-        st.rerun()
+        add_button = st.form_submit_button(
+            "➕ Add Stock",
+            use_container_width=True
+        )
+
+        if add_button:
+
+            st.session_state.watchlist.append(
+                selected_stock
+            )
+
+            st.rerun()
 
     st.divider()
 
-    st.subheader("Current Watchlist")
+    st.subheader("Current Dashboard Stocks")
 
     remove_stock = None
 
+    # REMOVE STOCKS
     for stock in st.session_state.watchlist:
 
         col1, col2 = st.columns([5, 1])
@@ -174,6 +202,7 @@ def fetch_market_data(stock_list):
                 hist["Close"].iloc[-2]
             )
 
+            # PRICE CHANGE %
             change_percent = (
                 (
                     current_price
@@ -182,6 +211,7 @@ def fetch_market_data(stock_list):
                 / prev_price
             ) * 100
 
+            # VOLUME
             current_volume = (
                 hist["Volume"].iloc[-1]
             )
@@ -192,8 +222,10 @@ def fetch_market_data(stock_list):
                 .mean()
             )
 
+            # RVOL
             relative_volume = (
-                current_volume / avg_volume
+                current_volume
+                / avg_volume
             )
 
             # VWAP
@@ -215,22 +247,28 @@ def fetch_market_data(stock_list):
             vwap_distance = (
                 (
                     current_price - vwap
-                ) / vwap
+                )
+                / vwap
             ) * 100
 
             # DAY RANGE %
-            day_high = hist["High"].max()
+            day_high = (
+                hist["High"].max()
+            )
 
-            day_low = hist["Low"].min()
+            day_low = (
+                hist["Low"].min()
+            )
 
             day_range_percent = (
                 (
                     day_high - day_low
-                ) / day_low
+                )
+                / day_low
             ) * 100
 
             # VOLUME SPIKE
-            volume_spike = (
+            spike = (
                 "🔥"
                 if relative_volume > 1.5
                 else ""
@@ -238,10 +276,15 @@ def fetch_market_data(stock_list):
 
             # MOMENTUM SCORE
             momentum_score = (
+
                 (change_percent * 0.4)
+
                 +
+
                 (relative_volume * 0.4)
+
                 +
+
                 (vwap_distance * 0.2)
             )
 
@@ -269,7 +312,7 @@ def fetch_market_data(stock_list):
                     int(current_volume),
 
                 "Spike":
-                    volume_spike,
+                    spike,
 
                 "Momentum":
                     round(momentum_score, 2)
@@ -281,7 +324,7 @@ def fetch_market_data(stock_list):
     return results
 
 # ─────────────────────────────────────────────
-# DATA ENGINE
+# FETCH DATA
 # ─────────────────────────────────────────────
 
 market_data = fetch_market_data(
@@ -314,37 +357,37 @@ df.insert(
 )
 
 # ─────────────────────────────────────────────
-# TOP STOCK PANEL
+# TOP MOMENTUM PANEL
 # ─────────────────────────────────────────────
 
 top_stock = df.iloc[0]
 
-col1, col2, col3, col4 = st.columns(4)
+c1, c2, c3, c4 = st.columns(4)
 
-col1.metric(
+c1.metric(
     "🔥 Top Momentum",
     top_stock["Stock"]
 )
 
-col2.metric(
-    "📈 Momentum",
+c2.metric(
+    "⚡ Momentum",
     top_stock["Momentum"]
 )
 
-col3.metric(
-    "⚡ RVOL",
+c3.metric(
+    "📈 RVOL",
     top_stock["RVOL"]
 )
 
-col4.metric(
-    "💥 Change %",
+c4.metric(
+    "💥 % Change",
     top_stock["% Change"]
 )
 
 st.divider()
 
 # ─────────────────────────────────────────────
-# LIVE TABLE PLACEHOLDER
+# LIVE DATA TABLE
 # ─────────────────────────────────────────────
 
 table_placeholder = st.empty()
@@ -361,10 +404,10 @@ table_placeholder.dataframe(
 
 st.caption(
     """
-    🔄 Market data updates every 15 seconds
+    🔄 Market data refreshes every 15 seconds
     •
-    📊 Momentum ranking updates automatically
+    📊 Momentum rankings update automatically
     •
-    🚀 Optimized for momentum trading
+    🚀 Optimized for intraday momentum trading
     """
 )
